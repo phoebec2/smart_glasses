@@ -57,9 +57,9 @@ boolean writeFile(char *fileName, int offset) {
 boolean appendFile(char *fileName) {
   int start = millis();
   if (!is_cmd_mode) gotoCommandMode();
-  Serial1.print("append ");
-  Serial1.print(fileName);
-  Serial1.write(13); //This is \r
+  Serial1.println("append " + (String)fileName);
+//  Serial1.print(fileName);
+//  Serial1.write(13); //This is \r
 
   //The Serial1 echos the commands we send it by default so we have 'append log254.txt 10\r' sitting
   //in the RX buffer. Let's try to ignore this.
@@ -76,7 +76,7 @@ boolean appendFile(char *fileName) {
         delay(5);
         is_cmd_mode = 0;
         // Serial.println("Set to 0 at: " + String(77));
-        Serial.println("APPEND " + (String)fileName + ": " + (millis() - start));
+        Serial.println("APPEND " + (String)fileName + ": " + String(millis() - start));
         return (true);
       }
     delay(1);

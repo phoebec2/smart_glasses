@@ -65,7 +65,7 @@ void update_IMU() {
     IMU.readMagneticField(mx, my, mz);
   }
 
-  Serial.println("UIMU: " + (millis() - start));
+  Serial.println("UIMU: " + String(millis() - start));
 
 //  if (acc_avail | omg_avail | mag_avail) {
 //    float data_arr[] = {ax, ay, az, wx, wy, wz, mx, my, mz};
@@ -89,13 +89,13 @@ void print_IMU() {
   Serial.print("ang:\t" + String(wx) + "\t" + String(wy) + "\t" + String(wz) + "\t\t");
   Serial.println("mag:\t" + String(mx) + "\t" + String(my) + "\t" + String(mz) + "\t\t");
 
-  if(appendFile("mic_data.csv")){
-    Serial1.print(String(ax) + ", " + String(ay) + ", " + String(az));
-    Serial1.print(String(wx) + ", " + String(wy) + ", " + String(wz));
-    Serial1.println(String(mx) + ", " + String(my) + ", " + String(mz));
-    delay(5);
-  }
-  Serial.println("PIMU: " + (millis() - start));
+//  if(appendFile("mic_data.csv")){
+//    Serial1.print(String(ax) + ", " + String(ay) + ", " + String(az));
+//    Serial1.print(String(wx) + ", " + String(wy) + ", " + String(wz));
+//    Serial1.println(String(mx) + ", " + String(my) + ", " + String(mz));
+//    delay(5);
+//  }
+  Serial.println("PIMU: " + String(millis() - start));
 //  interrupts();
 }
 
@@ -148,7 +148,7 @@ void print_mic() {
   int start = millis();
   if (samplesRead) {
     // Print samples to the Serial1 monitor or plotter
-    for (int i = 0; i < samplesRead; i++) {
+    for (int i = 0; i < samplesRead / channels; i++) {
       if (channels == 2) {
         Serial.print("L:");
         Serial.print(sampleBuffer[i]);
@@ -159,7 +159,7 @@ void print_mic() {
     }
 
     if(appendFile("mic_data.csv")){
-      for (int i = 0; i < samplesRead; i++) {
+      for (int i = 0; i < samplesRead / channels; i++) {
         if (channels == 2) {
           Serial1.print(sampleBuffer[i] + ", ");
           i++;
@@ -168,11 +168,12 @@ void print_mic() {
       }
       delay(5);
     }
+
 //    save_mic_data();
     // Clear the read count
     samplesRead = 0;
   }
-  Serial.println("MIC: " + (millis() - start));
+  Serial.println("MIC: " + String(millis() - start));
 }
 
 void save_mic_data() {
@@ -221,8 +222,8 @@ void setup() {
 }
 
 void loop() {
-  update_IMU();
-  print_IMU();
+//  update_IMU();
+//  print_IMU();
   print_mic();
 //  openlog_terminal();
 }
