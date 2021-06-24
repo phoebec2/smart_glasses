@@ -16,7 +16,9 @@ using namespace rtos;
 /*************************Global Variables *************************/
 // IMU data variables
 float ax, ay, az, wx, wy, wz, mx, my, mz;
-float imu_data[] = {ax, ay, az, wx, wy, wz, mx, my, mz};
+static const int imu_num_cum = 10;
+float imu_data[9];
+float imu_cum_data[imu_num_cum][9];
 int imu_counter = 0;
 
 // microphone variables
@@ -42,15 +44,16 @@ void setup_IMU() {
     Serial.println("Failed to initialize IMU!");
     while (1);
   }
-//  imu_file = SD.open("imu_data.csv", FILE_WRITE);
-//  imu_file.println("ax, ay, az, wx, wy, wz, mx, my, mz");
-//  imu_file.seek(EOF);
+  //  imu_file = SD.open("imu_data.csv", FILE_WRITE);
+  //  imu_file.println("ax, ay, az, wx, wy, wz, mx, my, mz");
+  //  imu_file.seek(EOF);
 
   Serial.println("IMU initialized");
 }
 
 void update_IMU() {
   int start = millis();
+  imu_counter = imu_counter == 10 ? 0 : imu_counter;
 
   bool acc_avail, omg_avail, mag_avail;
   if (acc_avail = IMU.accelerationAvailable()) {
@@ -65,38 +68,48 @@ void update_IMU() {
     IMU.readMagneticField(mx, my, mz);
   }
 
+  float temp_data[9] = {ax, ay, az, wx, wy, wz, mx, my, mz};
+  for (int i = 0; i < 9; i++) {
+    imu_cum_data[imu_counter][i] = temp_data[i];
+  }
+  imu_counter++;
+
   Serial.println("UIMU: " + String(millis() - start));
 
-//  if (acc_avail | omg_avail | mag_avail) {
-//    float data_arr[] = {ax, ay, az, wx, wy, wz, mx, my, mz};
-//    for (int i = 0; i < 9; i++) {
-//      imu_file.print(String(data_arr[i]) + ",");
-//    }
-//    imu_file.println("");
-//    imu_counter++;
-//    if(imu_counter > 50){
-//      imu_file.flush();
-//      imu_counter = 0;
-//    }
-//  }
+  //  if (acc_avail | omg_avail | mag_avail) {
+  //    float data_arr[] = {ax, ay, az, wx, wy, wz, mx, my, mz};
+  //    for (int i = 0; i < 9; i++) {
+  //      imu_file.print(String(data_arr[i]) + ",");
+  //    }
+  //    imu_file.println("");
+  //    imu_counter++;
+  //    if(imu_counter > 50){
+  //      imu_file.flush();
+  //      imu_counter = 0;
+  //    }
+  //  }
 }
 
 void print_IMU() {
   // Serial.println("Printing IMU data");
-//  noInterrupts();
+  //  noInterrupts();
   int start = millis();
-  Serial.print("acc:\t" + String(ax) + "\t" + String(ay) + "\t" + String(az) + "\t\t");
-  Serial.print("ang:\t" + String(wx) + "\t" + String(wy) + "\t" + String(wz) + "\t\t");
-  Serial.println("mag:\t" + String(mx) + "\t" + String(my) + "\t" + String(mz) + "\t\t");
+  if (imu_counter < 10) return;
+  if (appendFile("mic_data.csv")) {
+    for (int i = 0; i < 10; i++) {
+      Serial.print("acc:\t" + String(imu_cum_data[i][0]) + "\t" + String(imu_cum_data[i][1]) + "\t" + String(imu_cum_data[i][2]) + "\t\t");
+      Serial.print("ang:\t" + String(imu_cum_data[i][3]) + "\t" + String(imu_cum_data[i][4]) + "\t" + String(imu_cum_data[i][5]) + "\t\t");
+      Serial.println("mag:\t" + String(imu_cum_data[i][6]) + "\t" + String(imu_cum_data[i][7]) + "\t" + String(imu_cum_data[i][8]) + "\t\t");
 
-//  if(appendFile("mic_data.csv")){
-//    Serial1.print(String(ax) + ", " + String(ay) + ", " + String(az));
-//    Serial1.print(String(wx) + ", " + String(wy) + ", " + String(wz));
-//    Serial1.println(String(mx) + ", " + String(my) + ", " + String(mz));
-//    delay(5);
-//  }
+      Serial1.print(String(imu_cum_data[i][0]) + ", " + String(imu_cum_data[i][1]) + ", " + String(imu_cum_data[i][2]));
+      Serial1.print(String(imu_cum_data[i][3]) + ", " + String(imu_cum_data[i][4]) + ", " + String(imu_cum_data[i][5]));
+      Serial1.println(String(imu_cum_data[i][6]) + ", " + String(imu_cum_data[i][7]) + ", " + String(imu_cum_data[i][8]));
+    }
+    delay(5);
+  }
+  imu_counter = 0;
   Serial.println("PIMU: " + String(millis() - start));
-//  interrupts();
+  //  interrupts();
 }
 
 void setup_mic() {
@@ -117,10 +130,10 @@ void setup_mic() {
   }
 
 
-//  mic_file = SD.open("mic_data.csv", O_WRITE | O_CREAT);
-//  mic_file.println("L, R");
-//  mic_file.seek(EOF);
-  
+  //  mic_file = SD.open("mic_data.csv", O_WRITE | O_CREAT);
+  //  mic_file.println("L, R");
+  //  mic_file.seek(EOF);
+
   Serial.println("mic initialized");
   mic_init = 1;
   //  mic_thread.start(mbed::callback(print_mic));
@@ -158,7 +171,7 @@ void print_mic() {
       Serial.println(sampleBuffer[i]);
     }
 
-    if(appendFile("mic_data.csv")){
+    if (appendFile("mic_data.csv")) {
       for (int i = 0; i < samplesRead / channels; i++) {
         if (channels == 2) {
           Serial1.print(sampleBuffer[i] + ", ");
@@ -169,7 +182,7 @@ void print_mic() {
       delay(5);
     }
 
-//    save_mic_data();
+    //    save_mic_data();
     // Clear the read count
     samplesRead = 0;
   }
@@ -204,7 +217,7 @@ void setup() {
   while (!Serial1 || !Serial);
   Serial.println("Started");
 
-//  setup_SD_card();
+  //  setup_SD_card();
   setupOpenLog();
   setup_mic();
   setup_IMU();
@@ -222,8 +235,8 @@ void setup() {
 }
 
 void loop() {
-//  update_IMU();
-//  print_IMU();
+  update_IMU();
+  print_IMU();
   print_mic();
-//  openlog_terminal();
+  //  openlog_terminal();
 }
