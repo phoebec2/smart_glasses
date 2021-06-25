@@ -3,14 +3,6 @@
 #include <Arduino_LSM9DS1.h>
 #include <PDM.h>
 
-#include <mbed.h>
-#include <rtos.h>
-#include <mbed_wait_api.h>
-#include <platform/CircularBuffer.h>
-#include <platform/Callback.h>
-
-using namespace rtos;
-
 // FINISH THREADDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 /*************************Global Variables *************************/
@@ -20,6 +12,7 @@ static const int imu_num_cum = 10;
 float imu_data[9];
 float imu_cum_data[imu_num_cum][9];
 int imu_counter = 0;
+int imu_prev_time = 0;
 
 // microphone variables
 PDMClass PDM(D8, D7, D6);
@@ -34,9 +27,7 @@ int mic_counter = 0;
 File imu_file, mic_file;
 const int chipSelect = D10;
 int resetOpenLog = D2;
-
-// threadding variables
-Thread mic_thread;
+String curr_file = "";
 /********************************************************************/
 
 void setup_IMU() {
@@ -44,16 +35,13 @@ void setup_IMU() {
     Serial.println("Failed to initialize IMU!");
     while (1);
   }
-  //  imu_file = SD.open("imu_data.csv", FILE_WRITE);
-  //  imu_file.println("ax, ay, az, wx, wy, wz, mx, my, mz");
-  //  imu_file.seek(EOF);
 
   Serial.println("IMU initialized");
 }
 
 void update_IMU() {
-  int start = millis();
-  imu_counter = imu_counter == 10 ? 0 : imu_counter;
+  
+  imu_counter = imu_counter == imu_num_cum ? 0 : imu_counter;
 
   bool acc_avail, omg_avail, mag_avail;
   if (acc_avail = IMU.accelerationAvailable()) {
@@ -73,30 +61,19 @@ void update_IMU() {
     imu_cum_data[imu_counter][i] = temp_data[i];
   }
   imu_counter++;
-
-  Serial.println("UIMU: " + String(millis() - start));
-
-  //  if (acc_avail | omg_avail | mag_avail) {
-  //    float data_arr[] = {ax, ay, az, wx, wy, wz, mx, my, mz};
-  //    for (int i = 0; i < 9; i++) {
-  //      imu_file.print(String(data_arr[i]) + ",");
-  //    }
-  //    imu_file.println("");
-  //    imu_counter++;
-  //    if(imu_counter > 50){
-  //      imu_file.flush();
-  //      imu_counter = 0;
-  //    }
-  //  }
+  int start = millis();
+  Serial.println("UIMU: " + String(1000.0/(start - imu_prev_time)));
+  imu_prev_time = start;
 }
 
 void print_IMU() {
   // Serial.println("Printing IMU data");
   //  noInterrupts();
   int start = millis();
-  if (imu_counter < 10) return;
-  if (appendFile("mic_data.csv")) {
-    for (int i = 0; i < 10; i++) {
+  if (imu_counter < imu_num_cum) return;
+  if (appendFile("imu_data.csv")) {
+    curr_file = "imu_data.csv";
+    for (int i = 0; i < imu_num_cum; i++) {
       Serial.print("acc:\t" + String(imu_cum_data[i][0]) + "\t" + String(imu_cum_data[i][1]) + "\t" + String(imu_cum_data[i][2]) + "\t\t");
       Serial.print("ang:\t" + String(imu_cum_data[i][3]) + "\t" + String(imu_cum_data[i][4]) + "\t" + String(imu_cum_data[i][5]) + "\t\t");
       Serial.println("mag:\t" + String(imu_cum_data[i][6]) + "\t" + String(imu_cum_data[i][7]) + "\t" + String(imu_cum_data[i][8]) + "\t\t");
@@ -129,11 +106,6 @@ void setup_mic() {
     while (1);
   }
 
-
-  //  mic_file = SD.open("mic_data.csv", O_WRITE | O_CREAT);
-  //  mic_file.println("L, R");
-  //  mic_file.seek(EOF);
-
   Serial.println("mic initialized");
   mic_init = 1;
   //  mic_thread.start(mbed::callback(print_mic));
@@ -161,17 +133,18 @@ void print_mic() {
   int start = millis();
   if (samplesRead) {
     // Print samples to the Serial1 monitor or plotter
-    for (int i = 0; i < samplesRead / channels; i++) {
-      if (channels == 2) {
-        Serial.print("L:");
-        Serial.print(sampleBuffer[i]);
-        Serial.print(" R:");
-        i++;
-      }
-      Serial.println(sampleBuffer[i]);
-    }
+//    for (int i = 0; i < samplesRead / channels; i++) {
+//      if (channels == 2) {
+//        Serial.print("L:");
+//        Serial.print(sampleBuffer[i]);
+//        Serial.print(" R:");
+//        i++;
+//      }
+//      Serial.println(sampleBuffer[i]);
+//    }
 
-    if (appendFile("mic_data.csv")) {
+    if (curr_file == "mic_data.csv" || appendFile("mic_data.csv")) {
+      curr_file = "mic_data.csv";
       for (int i = 0; i < samplesRead / channels; i++) {
         if (channels == 2) {
           Serial1.print(sampleBuffer[i] + ", ");
@@ -187,28 +160,6 @@ void print_mic() {
     samplesRead = 0;
   }
   Serial.println("MIC: " + String(millis() - start));
-}
-
-void save_mic_data() {
-  if (mic_init) {
-    for (int i = 0; i < samplesRead; i++) {
-      mic_file.print(String(sampleBuffer[i++]) + ", " + String(sampleBuffer[i]) + "\n");
-      //          Serial1.println("mic printed");
-    }
-    mic_counter++;
-    if (mic_counter > 100) {
-      mic_file.flush();
-      mic_counter = 0;
-    }
-  }
-}
-
-void setup_SD_card() {
-  if (!SD.begin(chipSelect)) {
-    Serial.println("SD card initialization failed!");
-    while (1);
-  }
-  Serial.println("SD card initialization done.");
 }
 
 void setup() {
