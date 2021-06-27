@@ -19,7 +19,7 @@ using namespace rtos;
 float ax, ay, az, wx, wy, wz, mx, my, mz;
 static const int imu_num_cum = 10;
 float imu_data[9];
-float imu_cum_data[imu_num_cum][9];
+float imu_cum_data[65][9];
 volatile int imu_counter, imu_data_rdy, imu_prev_time = 0;
 
 // microphone variables
@@ -46,7 +46,7 @@ void setup_IMU() {
     Serial.println("Failed to initialize IMU!");
     while (1);
   }
-
+  IMU.setContinuousMode();
   Serial.println("IMU initialized");
 }
 
@@ -55,26 +55,34 @@ void update_IMU() {
   imu_counter = imu_counter == imu_num_cum ? 0 : imu_counter;
 
   bool acc_avail, omg_avail, mag_avail;
-  if (acc_avail = IMU.accelerationAvailable()) {
-    IMU.readAcceleration(ax, ay, az);
+  while (IMU.accelerationAvailable()) {
+    if (acc_avail = IMU.accelerationAvailable()) {
+      IMU.readAcceleration(ax, ay, az);
+    }
+
+    if (omg_avail = IMU.gyroscopeAvailable()) {
+      IMU.readGyroscope(wx, wy, wz);
+    }
+
+    if (mag_avail = IMU.magneticFieldAvailable()) {
+      IMU.readMagneticField(mx, my, mz);
+    }
+
+    float temp_data[9] = {ax, ay, az, wx, wy, wz, mx, my, mz};
+    for (int i = 0; i < 9; i++) {
+      imu_cum_data[imu_counter][i] = temp_data[i];
+    }
+
+    imu_counter++;
+
+    if(imu_counter > 50) break;
   }
 
-  if (omg_avail = IMU.gyroscopeAvailable()) {
-    IMU.readGyroscope(wx, wy, wz);
-  }
-
-  if (mag_avail = IMU.magneticFieldAvailable()) {
-    IMU.readMagneticField(mx, my, mz);
-  }
-
-  float temp_data[9] = {ax, ay, az, wx, wy, wz, mx, my, mz};
-  for (int i = 0; i < 9; i++) {
-    imu_data[i] = temp_data[i];
-  }
-  imu_counter++;
-//  int start = millis();
-//  Serial.println("PIMU: " + String(1000.0/(start - imu_prev_time)));
-//  imu_prev_time = start;
+  imu_data_rdy = 1;
+  //  imu_counter++;
+  //  int start = millis();
+  //  Serial.println("PIMU: " + String(1000.0/(start - imu_prev_time)));
+  //  imu_prev_time = start;
   //  Serial.println("out update imu");
 }
 
@@ -82,7 +90,8 @@ void print_IMU() {
   //  Serial.println("in print imu");
   //  noInterrupts();
   //  Serial.println("counter: " + String(imu_counter));
-  if (imu_counter < imu_num_cum) return;
+  //  if (imu_counter < imu_num_cum) return;
+  if (!imu_data_rdy) return;
   //  if (appendFile("imu_data.csv")) {
   //    file = IMU_FILE;
   for (int i = 0; i < imu_num_cum; i++) {
@@ -96,25 +105,28 @@ void print_IMU() {
   }
   delay(5);
   //  }
-  imu_counter = 0;
-  imu_data_rdy = 0;
+  
   //  Serial.println("out print imu");
   //  interrupts();
   int start = millis();
-  Serial.println("PIMU: " + String(1000.0/(start - imu_prev_time)));
+  Serial.println("PIMU: " + String(imu_counter * 1000.0 / (start - imu_prev_time)));
   imu_prev_time = start;
+  
+  imu_counter = 0;
+  imu_data_rdy = 0;
 }
 
 void imu_thread_job() {
   while (true) {
-    for (int i = 0; i < imu_num_cum; i++) {
-      update_IMU();
-      for (int j = 0; j < 9; j++) {
-        imu_cum_data[i][j] = imu_data[j];
-      }
-      delayMicroseconds(4000);
-    }
-    imu_data_rdy = 1;
+    update_IMU();
+    //    for (int i = 0; i < imu_num_cum; i++) {
+    //      update_IMU();
+    //      for (int j = 0; j < 9; j++) {
+    //        imu_cum_data[i][j] = imu_data[j];
+    //      }
+    //      delayMicroseconds(4000);
+    //    }
+    //    imu_data_rdy = 1;
     while (imu_data_rdy);
   }
 }
@@ -160,8 +172,7 @@ void onPDMdata() {
 void print_mic() {
   // Wait for samples to be read
   // Serial.println("Printing microphone data");
-  //  int start = millis();
-  if (imu_counter == imu_num_cum){
+  if (imu_data_rdy) {
     print_IMU();
   }
   if (samplesRead) {
