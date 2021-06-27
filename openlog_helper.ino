@@ -4,13 +4,11 @@ int is_cmd_mode = 0;
 //for OpenLog to come online and report '<' that it is ready to receive characters to record
 void setupOpenLog(void) {
   pinMode(resetOpenLog, OUTPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
 
   //Reset OpenLog
   digitalWrite(resetOpenLog, LOW);
   delay(5);
   digitalWrite(resetOpenLog, HIGH);
-  digitalWrite(LED_BUILTIN, LOW);
 
   //Wait for OpenLog to respond with '<' to indicate it is alive and recording to a file
   while (1) {
@@ -18,7 +16,6 @@ void setupOpenLog(void) {
       if (Serial1.read() == '<') break;
   }
   Serial.println("Done initializing openlog");
-  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 //Open a file for writing. Begin writing at an offset
@@ -82,7 +79,8 @@ boolean appendFile(char *fileName) {
     delay(1);
   }
 
-  // Serial.println("Append file failed: Does the file exist?");
+   Serial.println("Append " + (String)fileName + " failed: Does the file exist?");
+//   setupOpenLog();
   return (false);
 }
 

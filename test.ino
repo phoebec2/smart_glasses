@@ -3,7 +3,16 @@
 #include <Arduino_LSM9DS1.h>
 #include <PDM.h>
 
-// FINISH THREADDING!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#include <mbed.h>
+#include <rtos.h>
+#include <mbed_wait_api.h>
+#include <platform/CircularBuffer.h>
+#include <platform/Callback.h>
+
+using namespace rtos;
+
+#define IMU_FILE 0
+#define MIC_FILE 1
 
 /*************************Global Variables *************************/
 // IMU data variables
@@ -11,13 +20,12 @@ float ax, ay, az, wx, wy, wz, mx, my, mz;
 static const int imu_num_cum = 10;
 float imu_data[9];
 float imu_cum_data[imu_num_cum][9];
-int imu_counter = 0;
-int imu_prev_time = 0;
+volatile int imu_counter, imu_data_rdy, imu_prev_time = 0;
 
 // microphone variables
 PDMClass PDM(D8, D7, D6);
 static const char channels = 2;
-static const int frequency = 16000;
+static const int frequency = 41667;
 short sampleBuffer[512];
 volatile int samplesRead;
 int mic_init = 0;
@@ -27,7 +35,10 @@ int mic_counter = 0;
 File imu_file, mic_file;
 const int chipSelect = D10;
 int resetOpenLog = D2;
-String curr_file = "";
+volatile int file = MIC_FILE;
+
+// threadding variables
+Thread imu_thread;
 /********************************************************************/
 
 void setup_IMU() {
@@ -40,7 +51,7 @@ void setup_IMU() {
 }
 
 void update_IMU() {
-  
+  //   Serial.println("in update imu");
   imu_counter = imu_counter == imu_num_cum ? 0 : imu_counter;
 
   bool acc_avail, omg_avail, mag_avail;
@@ -58,35 +69,54 @@ void update_IMU() {
 
   float temp_data[9] = {ax, ay, az, wx, wy, wz, mx, my, mz};
   for (int i = 0; i < 9; i++) {
-    imu_cum_data[imu_counter][i] = temp_data[i];
+    imu_data[i] = temp_data[i];
   }
   imu_counter++;
-  int start = millis();
-  Serial.println("UIMU: " + String(1000.0/(start - imu_prev_time)));
-  imu_prev_time = start;
+//  int start = millis();
+//  Serial.println("PIMU: " + String(1000.0/(start - imu_prev_time)));
+//  imu_prev_time = start;
+  //  Serial.println("out update imu");
 }
 
 void print_IMU() {
-  // Serial.println("Printing IMU data");
+  //  Serial.println("in print imu");
   //  noInterrupts();
-  int start = millis();
+  //  Serial.println("counter: " + String(imu_counter));
   if (imu_counter < imu_num_cum) return;
-  if (appendFile("imu_data.csv")) {
-    curr_file = "imu_data.csv";
-    for (int i = 0; i < imu_num_cum; i++) {
-      Serial.print("acc:\t" + String(imu_cum_data[i][0]) + "\t" + String(imu_cum_data[i][1]) + "\t" + String(imu_cum_data[i][2]) + "\t\t");
-      Serial.print("ang:\t" + String(imu_cum_data[i][3]) + "\t" + String(imu_cum_data[i][4]) + "\t" + String(imu_cum_data[i][5]) + "\t\t");
-      Serial.println("mag:\t" + String(imu_cum_data[i][6]) + "\t" + String(imu_cum_data[i][7]) + "\t" + String(imu_cum_data[i][8]) + "\t\t");
-
-      Serial1.print(String(imu_cum_data[i][0]) + ", " + String(imu_cum_data[i][1]) + ", " + String(imu_cum_data[i][2]));
-      Serial1.print(String(imu_cum_data[i][3]) + ", " + String(imu_cum_data[i][4]) + ", " + String(imu_cum_data[i][5]));
-      Serial1.println(String(imu_cum_data[i][6]) + ", " + String(imu_cum_data[i][7]) + ", " + String(imu_cum_data[i][8]));
-    }
-    delay(5);
+  //  if (appendFile("imu_data.csv")) {
+  //    file = IMU_FILE;
+  for (int i = 0; i < imu_num_cum; i++) {
+    //      Serial.print("acc:\t" + String(imu_cum_data[i][0]) + "\t" + String(imu_cum_data[i][1]) + "\t" + String(imu_cum_data[i][2]) + "\t\t");
+    //      Serial.print("ang:\t" + String(imu_cum_data[i][3]) + "\t" + String(imu_cum_data[i][4]) + "\t" + String(imu_cum_data[i][5]) + "\t\t");
+    //      Serial.println("mag:\t" + String(imu_cum_data[i][6]) + "\t" + String(imu_cum_data[i][7]) + "\t" + String(imu_cum_data[i][8]) + "\t\t");
+    Serial1.print("IMU, ");
+    Serial1.print(String(imu_cum_data[i][0]) + ", " + String(imu_cum_data[i][1]) + ", " + String(imu_cum_data[i][2]) + ", ");
+    Serial1.print(String(imu_cum_data[i][3]) + ", " + String(imu_cum_data[i][4]) + ", " + String(imu_cum_data[i][5]) + ", ");
+    Serial1.println(String(imu_cum_data[i][6]) + ", " + String(imu_cum_data[i][7]) + ", " + String(imu_cum_data[i][8]) + ", ");
   }
+  delay(5);
+  //  }
   imu_counter = 0;
-  Serial.println("PIMU: " + String(millis() - start));
+  imu_data_rdy = 0;
+  //  Serial.println("out print imu");
   //  interrupts();
+  int start = millis();
+  Serial.println("PIMU: " + String(1000.0/(start - imu_prev_time)));
+  imu_prev_time = start;
+}
+
+void imu_thread_job() {
+  while (true) {
+    for (int i = 0; i < imu_num_cum; i++) {
+      update_IMU();
+      for (int j = 0; j < 9; j++) {
+        imu_cum_data[i][j] = imu_data[j];
+      }
+      delayMicroseconds(4000);
+    }
+    imu_data_rdy = 1;
+    while (imu_data_rdy);
+  }
 }
 
 void setup_mic() {
@@ -130,36 +160,27 @@ void onPDMdata() {
 void print_mic() {
   // Wait for samples to be read
   // Serial.println("Printing microphone data");
-  int start = millis();
-  if (samplesRead) {
-    // Print samples to the Serial1 monitor or plotter
-//    for (int i = 0; i < samplesRead / channels; i++) {
-//      if (channels == 2) {
-//        Serial.print("L:");
-//        Serial.print(sampleBuffer[i]);
-//        Serial.print(" R:");
-//        i++;
-//      }
-//      Serial.println(sampleBuffer[i]);
-//    }
-
-    if (curr_file == "mic_data.csv" || appendFile("mic_data.csv")) {
-      curr_file = "mic_data.csv";
-      for (int i = 0; i < samplesRead / channels; i++) {
-        if (channels == 2) {
-          Serial1.print(sampleBuffer[i] + ", ");
-          i++;
-        }
-        Serial1.println(sampleBuffer[i]);
-      }
-      delay(5);
-    }
-
-    //    save_mic_data();
-    // Clear the read count
-    samplesRead = 0;
+  //  int start = millis();
+  if (imu_counter == imu_num_cum){
+    print_IMU();
   }
-  Serial.println("MIC: " + String(millis() - start));
+  if (samplesRead) {
+    //     Print samples to the Serial1 monitor or plotter
+    //    if (file == MIC_FILE || appendFile("mic_data.csv")) {
+    //      file = MIC_FILE;
+    for (int i = 0; i < samplesRead / channels; i++) {
+      if (channels == 2) {
+        //            Serial.print("L:");
+        Serial1.print("MIC, " + String(sampleBuffer[i]) + ", ");
+        //            Serial.print(" R:");
+        i++;
+      }
+      Serial1.println(sampleBuffer[i]);
+    }
+    samplesRead = 0;
+    delay(5);
+  }
+  //  Serial.println("MIC: " + String(millis() - start));
 }
 
 void setup() {
@@ -183,10 +204,13 @@ void setup() {
   createFile("mic_data.csv");
   Serial1.println("L, R");
   delay(10);
+  appendFile("mic_data.csv");
+  imu_thread.start(mbed::callback(imu_thread_job));
+  Serial.println("done init");
 }
 
 void loop() {
-  update_IMU();
+  // update_IMU();
   print_IMU();
   print_mic();
   //  openlog_terminal();
