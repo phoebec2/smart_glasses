@@ -1,7 +1,7 @@
 #include <PDM.h>
 #include <SD.h>
 
-#define PDM_BUF_SIZE 1024 * 32
+#define PDM_BUF_SIZE 1024 * 16
 #define IMU_BUF_SIZE 1024 * 9
 
 /****************Global Variables***************/
