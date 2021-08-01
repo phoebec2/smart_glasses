@@ -1,5 +1,6 @@
 #include <PDM.h>
-#include <SD.h>
+#include <SdFat.h>
+#include <hal/nrf_pdm.h>
 
 void setup_mic() {
   if (!Serial) {
@@ -9,7 +10,7 @@ void setup_mic() {
 
   // Configure the data receive callback
   PDM.onReceive(onPDMdata);
-  PDM.setBufferSize(PDM_BUF_SIZE);
+  PDM.setBufferSize(PDM_BUF_SIZE * pdm_sample_size);
 
   mic_print_arr = 0;
 
@@ -29,7 +30,10 @@ void save_mic_data() {
 
 //    int start = micros();
     int_mic = 0;
-    mic_file.write((byte*)mic_sampleBuffer[mic_print_arr], (size_t)PDM_BUF_SIZE);
+//    NVIC_DisableIRQ(PDM_IRQn);
+    mic_file.write((byte*)mic_sampleBuffer, (size_t)(PDM_BUF_SIZE * pdm_sample_size));
+//    NVIC_EnableIRQ(PDM_IRQn);
+//    Serial.println("Bytes: " + String(PDM_BUF_SIZE * pdm_sample_size));
     if(int_mic){
       Serial.println("mic int");
     }
@@ -59,8 +63,7 @@ void onPDMdata() {
   int bytesAvailable = PDM.available();
 
   // Read into the sample buffer
-  PDM.read(mic_sampleBuffer[!mic_print_arr], bytesAvailable);
-  mic_print_arr = !mic_print_arr;
+  PDM.read(mic_sampleBuffer, bytesAvailable);
 
   // 16-bit, 2 bytes per sample
   samplesRead = bytesAvailable / 2;

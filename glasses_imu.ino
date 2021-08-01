@@ -1,4 +1,4 @@
-#include <SD.h>
+#include <SdFat.h>
 #include <Arduino_LSM9DS1.h>
 
 void setup_imu() {
@@ -18,8 +18,8 @@ void save_imu_data(){
 	imu_file.write((byte*)imu_sampleBuffer, (size_t)IMU_BUF_SIZE);
 	imu_file.flush();
 	if(int_imu){
-      Serial.println("mic int");
-    }
+      Serial.println("imu int");
+  }
 }
 
 void update_IMU() {

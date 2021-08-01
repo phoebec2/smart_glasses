@@ -1,4 +1,4 @@
-#include <SD.h>
+#include <SdFat.h>
 
 void setup_sd_card(){
 	if(!Serial){
@@ -14,13 +14,17 @@ void setup_sd_card(){
 		delay(1000);
 	}
 
-	if (!SD.begin(chip_select)) {
+	if (!SD.begin(SD_CONFIG)) {
 		Serial.println("initialization failed!");
 		while (1);
 	}
 
-	SD.remove(mic_fname);
-	SD.remove(imu_fname);
+  if(SD.exists(mic_fname)){
+    SD.remove(mic_fname);
+  }
+  if(SD.exists(imu_fname)){
+    SD.remove(imu_fname);
+  }
 
 	mic_file = SD.open(mic_fname, O_WRITE | O_CREAT);
 	imu_file = SD.open(imu_fname, O_WRITE | O_CREAT);
