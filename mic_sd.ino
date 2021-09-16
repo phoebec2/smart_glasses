@@ -66,6 +66,9 @@ float imu_sampleBuffer[IMU_BUF_SIZE];
 int imu_buf_idx = 0;
 
 
+// IR variables
+volatile int IR_command_given = 0;
+
 // others
 volatile int setup_complete, int_mic, int_imu = 0;
 /***********************************************/
@@ -76,24 +79,31 @@ void setup() {
 		while (!Serial);
 	}
 
-	setup_sd_card();
-	setup_mic();
-	setup_imu();
+  pinMode(LED_BUILTIN, OUTPUT);
+//	setup_sd_card();
+//	setup_mic();
+//	setup_imu();
+  setup_ir();
 
 	setup_complete = 1;
 }
 
 void loop() {
-	if(card_present && setup_complete){
+  IR_gesture_check();
+	if(!card_present && setup_complete && IR_command_given){        // I added an ! in front of card_present
 		save_mic_data();
 		update_IMU();
+    IR_command_given = 0;
+    //digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+    //delay(1000);                       // wait for 1 seconds
+    //digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
 	} else if(card_present && !setup_complete){
 		mic_file = SD.open(mic_fname, O_WRITE | O_CREAT);
 		imu_file = SD.open(imu_fname, O_WRITE | O_CREAT);
 		setup_complete = 1;
     	delay(100);
 	} else {
-		Serial.println("SD card not present");
-		delay(250);
+		//Serial.println("SD card not present");
+		//delay(250);
 	}
 }
