@@ -30,6 +30,7 @@ const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 int chip_select = D10;
 int chip_detect = D9;
 
+
 SdExFat SD;
 ExFile mic_file;
 ExFile imu_file;
